@@ -12,7 +12,7 @@
 |---|---|---|---|---|
 | 3.2 Ingreso a zona restringida | Alta | Baja | Cámaras con ángulo malo; sombras y reflejos | **Núcleo del MVP.** Debe funcionar casi perfecto. |
 | 3.4 Aglomeraciones inusuales | Alta en densidad baja o media | Media | Oclusión cuando hay mucha gente: el conteo se subestima | **Núcleo del MVP.** Umbral por zona más una comparación con el histórico de esa hora. |
-| 3.3 Objetos desatendidos | Media | Media-alta | Falsos positivos: mochilas junto a estudiantes sentados, objetos de mobiliario | Incluir, **limitado a zonas configuradas** (pasillos, accesos) y no a bibliotecas o salones. |
+| 3.3 Objetos desatendidos | Media | Media-alta | Falsos positivos: mochilas junto a estudiantes sentados, objetos de mobiliario | Incluir: **activo en zonas de tránsito**; en bibliotecas, salones y salas de estudio, **solo fuera del horario de uso** (sección 4.3). |
 | 3.1 Caídas o persona en el suelo | Media-baja con cámaras CCTV reales | Alta | Cámaras altas o cenitales; poca gente cae de verdad (pocos datos); confusión con personas sentadas en el piso | Incluir como **"persona tendida en el suelo más de N segundos"**, más robusto que detectar el instante de la caída. Validar en escenarios controlados. |
 
 **Mensaje clave:** el valor no está en detectar todo, sino en **reducir el tiempo de detección de ciertos eventos sin inundar al operador de falsas alarmas.** La fatiga por alarmas es la causa número uno de que estos sistemas se apaguen en la práctica. Por eso la métrica estrella debe ser **falsas alarmas por cámara por hora**, no solo la "precisión".
@@ -108,13 +108,45 @@ Todos los parámetros son **configurables por cámara o zona** y empiezan con un
 
 ### 4.3 Objeto desatendido
 
-- **Lógica:**
+En bibliotecas, salones y salas de estudio **el personal ya avisa cuando alguien deja sus cosas mucho tiempo.** El sistema no debe duplicar ese proceso ni generar ruido mientras esos espacios están en uso. Por eso la regla depende de **dos cosas: el tipo de zona y el horario.**
+
+#### Política por tipo de zona
+
+| Tipo de zona | Ejemplos | Durante el horario de uso | Fuera del horario de uso (sin clases o cerrado) | Tipo de alerta |
+|---|---|---|---|---|
+| **Tránsito** | Pasillos, accesos, escaleras, patios, paraderos | **Activa** (`t_abandono` de 2 a 5 min, sin persona cerca) | Activa (`t_abandono` más corto) | *Objeto desatendido*, prioridad media o alta |
+| **Estancia** | Biblioteca, salones, salas de estudio, comedores | **Desactivada:** la cubre el personal | **Activa:** el espacio debería estar vacío | *Objeto olvidado o desatendido fuera de horario*, prioridad baja o media |
+| **Excluida** | Depósitos, casilleros, zonas con mobiliario cambiante | Desactivada | Desactivada | No genera alerta |
+
+#### Cómo se define "fuera de horario"
+
+- **Horario fijo por zona** en la configuración, por ejemplo biblioteca de 07:00 a 22:00 y salones de 07:00 a 23:00 de lunes a sábado.
+- **Horario académico:** se importa un CSV o calendario con las clases por salón. Un salón queda "fuera de horario" en los bloques sin clase, no solo de noche.
+- **Margen de cierre:** se espera `margen_cierre` (inicial: 15 min) después del cierre o del fin de la clase antes de activar la regla, para que la gente salga y el personal haga su ronda.
+- **Feriados y eventos especiales:** calendario de excepciones (exámenes, eventos nocturnos) que vuelve a desactivar la regla.
+
+#### Lógica
+
+- **Zona de tránsito**:
   1. Se detecta un objeto de clase mochila, bolso o maleta (clases COCO `backpack`, `handbag`, `suitcase`).
   2. El objeto queda **estático** (desplazamiento menor a X píxeles) durante `t_estatico`.
   3. **No hay ninguna persona** a menos de `radio_r` (en proporción a la altura media de una persona en esa cámara) durante `t_abandono`.
   4. Mejora: asociar el objeto con la persona que lo trajo (el track más cercano cuando apareció) y alertar cuando esa persona sale de la escena.
-- **Parámetros:** `t_abandono` (inicial: 120 a 300 s, según el espacio), `radio_r`, `zonas_aplicables`, `clases`.
-- **Limitar a zonas de tránsito.** En bibliotecas o comedores generaría ruido constante.
+- **Zona de estancia fuera de horario**: la regla es más simple y más confiable, porque el espacio debería estar vacío:
+  1. **No hay personas** en la zona durante `t_vacio` (inicial: 5 min).
+  2. Hay un objeto detectado y estático en la zona.
+  3. Se genera **una sola alerta agrupada por espacio** ("Salón 204: 2 objetos detectados tras el cierre") con un snapshot, en lugar de una alerta por objeto.
+
+Beneficios del modo fuera de horario:
+
+- Menos falsas alarmas, porque no hay estudiantes sentados junto a sus mochilas.
+- Apoya la ronda de cierre del personal de seguridad o limpieza.
+- Alimenta un flujo de **objetos perdidos.**
+- **Dato extra:** detectar una persona en una zona de estancia fuera de horario se puede tratar como *ingreso a zona restringida* (sección 4.1) con el mismo calendario.
+
+**Parámetros:** `tipo_zona` (tránsito, estancia o excluida), `horario_uso`, `calendario_academico`, `margen_cierre`, `t_abandono`, `t_vacio`, `radio_r`, `clases`.
+
+**Validación específica:** comparar en el piloto los objetos que el sistema detecta tras el cierre con los que el personal encuentra en su ronda (sensibilidad), y medir cuántas alertas fueron objetos realmente olvidados frente a mobiliario o falsos positivos.
 
 ### 4.4 Caída o persona en el suelo
 
@@ -159,7 +191,7 @@ Reglas para usar VLM o LLM de forma responsable:
 | ID | Requisito | Criterio de aceptación |
 |---|---|---|
 | RF-01 | Ingerir video por RTSP y desde archivos de prueba | Conecta al menos 4 cámaras simultáneas; se reconecta sola en menos de 30 s si se cae el stream |
-| RF-02 | Configurar por cámara: zonas (polígonos), líneas, horarios, umbrales, tiempos mínimos y sensibilidad | Desde un archivo YAML o la UI; los cambios se aplican sin reiniciar todo el sistema |
+| RF-02 | Configurar por cámara: zonas (polígonos) con **tipo de zona** (tránsito, estancia o excluida), líneas, horarios, **calendario académico y feriados**, umbrales, tiempos mínimos y sensibilidad | Desde un archivo YAML o la UI; los cambios se aplican sin reiniciar todo el sistema |
 | RF-03 | Detectar los 4 eventos definidos según las reglas de la sección 4 | Cumple las metas de la sección 7.2 |
 | RF-04 | Generar alertas con: tipo, cámara, ubicación, fecha y hora, confianza, **snapshot con recuadro** y **clip de unos 10 s** (5 s antes y 5 s después) | El 100 % de las alertas tienen evidencia adjunta |
 | RF-05 | Ciclo de vida de la alerta: `nueva → en revisión → confirmada / descartada (motivo) → atendida → cerrada` | Cada transición registra usuario y hora |
@@ -226,7 +258,8 @@ Las métricas se calculan **a nivel de evento**, no de fotograma. Una alerta es 
 |---|---|---|---|
 | Zona restringida | ≥ 95 % | ≤ 0.1 | ≤ 3 s después de `t_min` |
 | Aglomeración | ≥ 90 % | ≤ 0.1 | ≤ 10 s después de `t_sostenido` |
-| Objeto desatendido | ≥ 85 % | ≤ 0.3 | ≤ 5 s después de `t_abandono` |
+| Objeto desatendido (tránsito) | ≥ 85 % | ≤ 0.3 | ≤ 5 s después de `t_abandono` |
+| Objeto fuera de horario (estancia) | ≥ 90 % frente a la ronda del personal | ≤ 1 alerta falsa por espacio por noche | ≤ 1 min después de `t_vacio` |
 | Persona en el suelo | ≥ 80 % (escenarios controlados) | ≤ 0.3 | ≤ 5 s después de `t_suelo` |
 
 Ejemplo de por qué importa la FA/h: 0.3 FA/h con 20 cámaras en 12 horas de operación son **unas 72 falsas alarmas al día.** Ese número probablemente sea demasiado alto. Por eso los umbrales se ajustan por cámara y se limitan las zonas.
