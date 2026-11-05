@@ -19,6 +19,18 @@ telegram:
   token: ""
   chat_id: ""
 
+# Descripción de cada alerta con IA (opcional; ver ia.py). Requiere la variable
+# OPENAI_API_KEY con saldo en platform.openai.com (ChatGPT Plus no incluye la API).
+ia:
+  activa: false
+  modelo: ""        # un modelo con visión de https://platform.openai.com/docs/models
+
+# Mapa del campus en el dashboard. Posición de cada cámara en proporciones del plano (x, y).
+mapa:
+  imagen: ""        # ruta a un plano o captura de Google Maps (png/jpg); vacío = plano de ejemplo
+  camaras:
+    "Celular demo": [0.40, 0.62]
+
 reglas:
   aglomeracion:
     activa: true

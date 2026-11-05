@@ -24,6 +24,7 @@ import yaml
 
 from almacen import Almacen
 from analizador import Analizador, cargar_yaml, fusionar
+from ia import DescriptorIA, configuracion_ia
 from notificador import Telegram, credenciales
 
 AQUI = Path(__file__).resolve().parent
@@ -184,6 +185,17 @@ def main():
     else:
         print("Telegram desactivado (falta TELEGRAM_TOKEN o TELEGRAM_CHAT_ID).")
 
+    descriptor = None
+    clave_ia, modelo_ia = configuracion_ia(cfg)
+    if clave_ia:
+        avisar = (lambda i, texto: telegram.enviar_texto(f"🤖 IA sobre la alerta #{i}: {texto}")) \
+            if telegram else None
+        descriptor = DescriptorIA(clave_ia, modelo_ia, almacen, al_describir=avisar)
+        descriptor.iniciar()
+        print(f"Descripción con IA activada ({modelo_ia}).")
+    else:
+        print(f"Descripción con IA desactivada ({modelo_ia}).")
+
     if es_archivo:
         cap = cv2.VideoCapture(fuente)
         if not cap.isOpened():
@@ -238,6 +250,9 @@ def main():
                 print(f"[ALERTA #{alerta_id}] {a.mensaje} (procesada en {latencia_ms:.0f} ms)")
                 if telegram:
                     telegram.enviar_alerta(alerta_id, a.tipo, a.mensaje, camara, ruta)
+                if descriptor:
+                    personas = [d.caja for d in detecciones if d.clase == "person"]
+                    descriptor.describir_async(alerta_id, a.mensaje, ruta, personas)
 
             if time.time() - ultimo_publicado > 0.3:
                 guardar_jpg(EN_VIVO, frame)
@@ -261,6 +276,8 @@ def main():
                     break
                 time.sleep(0.5)
             telegram.detener()
+        if descriptor:
+            descriptor.detener()
         if ventana:
             cv2.destroyAllWindows()
 

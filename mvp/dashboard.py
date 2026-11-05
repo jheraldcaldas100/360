@@ -19,6 +19,7 @@ import streamlit as st
 import yaml
 
 from almacen import Almacen, segundos_entre
+from mapa import dibujar_mapa
 
 AQUI = Path(__file__).resolve().parent
 DATOS = AQUI / "data"
@@ -129,6 +130,8 @@ def tarjeta(db: Almacen, a):
             tiempos.append(f"🚓 atendida en {fmt_seg(atencion)} ({a['atendido_por']})")
         if tiempos:
             st.caption("  \n".join(tiempos))
+        if a["descripcion_ia"]:
+            st.info(f"🤖 **IA:** {a['descripcion_ia']}")
         if a["imagen"] and Path(a["imagen"]).exists():
             with st.expander("Ver evidencia", expanded=a["estado"] == "nueva"):
                 st.image(a["imagen"], width="stretch")
@@ -144,6 +147,15 @@ def tarjeta(db: Almacen, a):
             if st.button("🚓 Marcar atendida", key=f"at{a['id']}", type="primary", width="stretch"):
                 db.cambiar_estado(a["id"], "atendida")
                 st.rerun(scope="fragment")
+
+
+@st.fragment(run_every="2s")
+def mapa_campus():
+    cfg = yaml.safe_load(CONFIG_ACTIVA.read_text(encoding="utf-8")) if CONFIG_ACTIVA.exists() else {}
+    if not (cfg.get("mapa") or {}).get("camaras"):
+        st.caption("Configura `mapa.camaras` en config.yaml para ver las cámaras en el plano.")
+        return
+    st.image(dibujar_mapa(cfg["mapa"], almacen().pendientes_por_camara(), AQUI), width="stretch")
 
 
 @st.fragment(run_every="2s")
@@ -180,6 +192,8 @@ with tab_monitoreo:
     with col_video:
         st.subheader("En vivo")
         video_en_vivo()
+        st.subheader("Mapa del campus")
+        mapa_campus()
     with col_alertas:
         st.subheader("Alertas")
         panel_alertas()

@@ -30,6 +30,7 @@ COLUMNAS = {
     "revisado_por": "TEXT",
     "atendida": "TEXT",  # cuándo se marcó como atendida
     "atendido_por": "TEXT",
+    "descripcion_ia": "TEXT",  # descripción opcional generada por un modelo de visión
 }
 
 
@@ -99,6 +100,20 @@ class Almacen:
         conteo = {e: 0 for e in ESTADOS}
         conteo.update({estado: n for estado, n in filas})
         return conteo
+
+    def guardar_descripcion(self, alerta_id: int, texto: str) -> None:
+        with self._lock:
+            self.conn.execute("UPDATE alertas SET descripcion_ia = ? WHERE id = ?", (texto, alerta_id))
+            self.conn.commit()
+
+    def pendientes_por_camara(self) -> dict[str, int]:
+        """Alertas nuevas o confirmadas sin atender, por cámara (para el mapa)."""
+        with self._lock:
+            filas = self.conn.execute(
+                "SELECT camara, COUNT(*) FROM alertas WHERE estado IN ('nueva', 'confirmada')"
+                " GROUP BY camara"
+            ).fetchall()
+        return {camara: n for camara, n in filas}
 
     def cambiar_estado(self, alerta_id: int, estado: str, por: str = "dashboard") -> bool:
         """Aplica un cambio de estado si el flujo lo permite. Devuelve False si no se pudo

@@ -42,6 +42,24 @@ También pueden pasar la fuente sin editar el archivo: `python detector.py --fue
 
 ## 3. Ejecutar
 
+### Lo más fácil: dos comandos
+
+Primero el chequeo previo, que revisa librerías, cámara, velocidad del modelo, Telegram, IA y disco, y dice qué falta:
+
+```bash
+python verificar.py
+```
+
+Después, el detector y el dashboard juntos (se abre el navegador; Ctrl+C detiene todo):
+
+```bash
+python iniciar_demo.py --limpiar
+```
+
+`--limpiar` borra las alertas de los ensayos. Para el plan B con un video grabado: `python iniciar_demo.py --fuente videos/respaldo.mp4`.
+
+### O por separado
+
 Terminal 1, el detector (abre una ventana con el video analizado; `q` para salir):
 
 ```bash
@@ -60,7 +78,7 @@ La primera vez se descarga el modelo `yolo11n.pt` (unos 6 MB). Las alertas se gu
 
 | Pestaña | Qué tiene |
 |---|---|
-| 📹 **Monitoreo** | Video en vivo y alertas con **prioridad por color** (alta: persona en el suelo y zona restringida; media: objeto y aglomeración), **sonido** y aviso emergente. Flujo del guardia: **Confirmar o Descartar → Marcar atendida**. Cada alerta muestra cuánto tardó en generarse, en procesarse, en revisarse y en atenderse, y quién lo hizo |
+| 📹 **Monitoreo** | Video en vivo, **mapa del campus** (cada cámara se pone roja con sus alertas pendientes) y alertas con **prioridad por color** (alta: persona en el suelo y zona restringida; media: objeto y aglomeración), **sonido** y aviso emergente. Flujo del guardia: **Confirmar o Descartar → Marcar atendida**. Cada alerta muestra cuánto tardó en generarse, en procesarse, en revisarse y en atenderse, y quién lo hizo |
 | 📊 **Estadísticas** | Tasa de confirmación, tiempo de respuesta, tiempo de procesamiento, tabla por tipo, gráficos por tipo y por hora, historial y descarga en CSV |
 | ⚙️ **Configuración** | **Deslizadores** para cambiar personas, segundos, confianza y la zona restringida. Se aplican **en vivo** en un segundo, sin reiniciar el detector. Ideal para mostrarle al jurado que los criterios son objetivos y configurables |
 
@@ -80,6 +98,35 @@ La primera vez se descarga el modelo `yolo11n.pt` (unos 6 MB). Las alertas se gu
 5. Prueben la conexión: `python notificador.py` debe enviar un mensaje al grupo.
 
 Cada alerta llega con **foto y botones** (✅ Confirmar / ❌ Descartar y luego 🚓 Marcar atendida). Lo que se toca en Telegram se ve en el dashboard, y al revés. Solo el chat configurado puede cambiar alertas. **No suban el token al repositorio.**
+
+## 3b-bis. Mapa del campus
+
+Por defecto se muestra un plano de ejemplo. Para usar el de su universidad, guarden una captura de Google Maps o un croquis como `mapa.png` en la carpeta `mvp/` y ubiquen cada cámara en `config.yaml`. La posición va en proporciones del plano: `[0.5, 0.5]` es el centro.
+
+```yaml
+mapa:
+  imagen: "mapa.png"
+  camaras:
+    "Celular demo": [0.40, 0.62]
+```
+
+El nombre de la cámara debe ser igual a `nombre_camara`.
+
+## 3b-ter. Descripción de la alerta con IA (opcional)
+
+Un modelo de visión de OpenAI (GPT) mira la foto de cada alerta y responde en una frase qué se observa y si la imagen respalda la alerta, por ejemplo "Coincide: sí". La descripción aparece en el dashboard y en Telegram. Cómo se usa de forma responsable:
+
+- La IA **no decide ni retrasa** la alerta: llega unos segundos después, como contexto.
+- **Antes de enviar la foto se difuminan las caras** (la zona de la cabeza de cada persona detectada).
+- Se le pide no identificar a nadie ni describir rasgos físicos.
+
+Para activarla se necesita una clave de API con saldo en https://platform.openai.com/api-keys. **ChatGPT Plus no incluye la API.**
+
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+En `config.yaml`, pongan `ia.activa: true` y en `ia.modelo` un modelo con visión de https://platform.openai.com/docs/models. Si no hay internet o falla, la demo sigue funcionando sin la descripción.
 
 ## 3c. Medir resultados con videos (para el pitch)
 
@@ -168,7 +215,11 @@ Con un archivo de video se usa el tiempo del video, así que el resultado es igu
 | `dashboard.py` | Dashboard del operador (Streamlit) |
 | `evaluar.py` | Evaluación con videos etiquetados |
 | `experimento.py` | Experimento "¿quién lo ve primero?" |
+| `ia.py` | Descripción opcional de la alerta con GPT (difumina las caras antes) |
+| `mapa.py` | Mapa del campus con las cámaras y sus alertas pendientes |
+| `verificar.py` | Chequeo previo a la demo |
+| `iniciar_demo.py` | Arranca el detector y el dashboard juntos |
 | `config.yaml` / `config_real.yaml` | Parámetros de la demo y de la hipótesis real |
-| `tests/` | Pruebas de las reglas, el registro, Telegram (simulado), la evaluación y el experimento: `python -m pytest tests` |
+| `tests/` | Pruebas de las reglas, el registro, Telegram e IA (simulados), el mapa, la evaluación y el experimento: `python -m pytest tests` |
 
 Licencia del modelo: Ultralytics YOLO es AGPL-3.0. Para un hackatón no es un problema, pero hay que revisarlo si después se quiere comercializar (ver `docs/propuesta-safecampus-v2.md`, sección 8).

@@ -111,6 +111,10 @@ class Telegram:
             r = self.http.post(f"{self.url}/sendMessage", data=datos, timeout=15)
         r.raise_for_status()
 
+    def enviar_texto(self, texto: str) -> None:
+        """Mensaje de texto simple (por ejemplo, la descripción de la IA)."""
+        self._post("sendMessage", {"chat_id": self.chat_id, "text": texto})
+
     # ------------------------------------------------------------ botones
 
     def _escuchar(self) -> None:

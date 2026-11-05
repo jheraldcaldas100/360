@@ -1,5 +1,7 @@
 # Tres60 SafeCampus: plan de mejora según la rúbrica (Frente S2, categoría Senior)
 
+> **Estado:** las mejoras técnicas A2 a A7, C1 a C4 y las herramientas de B3 ya están programadas en `mvp/` (ver `mvp/README.md`). El material de negocio, el pitch y las preguntas está en `pitch-y-negocio.md`.
+
 ## 1. Qué nos piden y cómo nos califican
 
 **Frente S2, Ciudades Inteligentes: Movilidad, Seguridad y GovTech.**
