@@ -2,6 +2,8 @@
 
 > Versión 2.1 de la propuesta. Parte del documento original (frente S2: Ciudades Inteligentes, Movilidad, Seguridad y GovTech) y agrega: evaluación de viabilidad por caso de uso, requisitos medibles, plan de validación con métricas, herramientas recomendadas, riesgos y una proyección de resultados.
 >
+> **Para el hackatón (3 días) se usa una versión acotada:** ver `mvp-hackathon.md` y el prototipo en `mvp/`. Este documento queda como hoja de ruta.
+>
 > La v2.1 incorpora la revisión externa de Codex (GPT-6.1-Sol, veredicto **"viable con cambios"**). El resumen está en la sección 13.
 
 ---

@@ -1,0 +1,5 @@
+ultralytics>=8.3
+opencv-python>=4.9
+streamlit>=1.50
+pyyaml>=6.0
+pytest>=8.0

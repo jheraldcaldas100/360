@@ -1,0 +1,37 @@
+# Configuración con los valores de la HIPÓTESIS REAL (para un piloto).
+# Para la demostración en vivo usa config.yaml (tiempos cortos).
+
+# Fuente de video:
+#   0, 1, 2...  -> webcam de la laptop o cámara virtual del celular (DroidCam, Iriun, Continuity Camera)
+#   "http://IP_DEL_CELULAR:8080/video" -> app IP Webcam (Android)
+#   "videos/prueba.mp4" -> archivo de video
+fuente: 0
+nombre_camara: "Pasillo 1"
+
+modelo: yolo11n.pt      # se descarga solo la primera vez (~6 MB)
+confianza: 0.4          # confianza mínima de cada detección (0 a 1)
+tamano_imagen: 640      # bajar a 480 o 320 si la laptop va lenta
+mostrar_ventana: true
+
+reglas:
+  aglomeracion:
+    activa: true
+    personas_min: 15      # ajustar según el aforo del espacio
+    segundos: 60          # durante al menos este tiempo
+
+  objeto_desatendido:
+    activa: true
+    clases: [backpack, handbag, suitcase]
+    segundos: 600         # hipótesis: 10 min sin nadie en el lugar
+    margen: 1.0           # "el lugar" = la caja del objeto agrandada 1 vez su tamaño a cada lado
+    segundos_para_reiniciar: 3   # una persona debe quedarse 3 s junto al objeto para reiniciar el conteo
+
+  persona_en_suelo:
+    activa: true
+    segundos: 30          # hipótesis: 30 s en el suelo
+    proporcion: 1.3       # la caja de la persona es 1.3 veces más ancha que alta = horizontal
+
+  zona_restringida:       # opcional
+    activa: false
+    zona: [0.6, 0.0, 1.0, 1.0]   # rectángulo en proporciones del video: x1, y1, x2, y2
+    segundos: 2
