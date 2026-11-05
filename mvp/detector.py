@@ -2,8 +2,8 @@
 
 Lee la cámara (webcam, celular o archivo de video), detecta personas y
 objetos con YOLO, aplica las reglas de reglas.py, guarda las alertas en
-SQLite con una foto de evidencia y publica el último fotograma para el
-dashboard.
+SQLite con una foto de evidencia, las envía por Telegram (si está
+configurado) y publica el último fotograma para el dashboard.
 
 Uso:
     python detector.py                       # usa config.yaml
@@ -21,17 +21,17 @@ from pathlib import Path
 
 import cv2
 import yaml
-from ultralytics import YOLO
 
 from almacen import Almacen
-from reglas import Deteccion, Motor
+from analizador import Analizador, cargar_yaml, fusionar
+from notificador import Telegram, credenciales
 
 AQUI = Path(__file__).resolve().parent
 DATOS = AQUI / "data"
 EVIDENCIAS = DATOS / "evidencias"
 EN_VIVO = DATOS / "en_vivo.jpg"
-
-CLASES_DE_INTERES = {"person", "backpack", "handbag", "suitcase"}
+AJUSTES = DATOS / "ajustes.yaml"  # lo escribe el dashboard al mover los deslizadores
+CONFIG_ACTIVA = DATOS / "config_activa.yaml"  # configuración en uso, para el dashboard
 
 COLOR = {
     "person": (80, 200, 80),
@@ -54,6 +54,7 @@ class CamaraEnVivo:
         self.fuente = fuente
         self.cap = cv2.VideoCapture(fuente)
         self.frame = None
+        self.t_captura = 0.0
         self.ok = self.cap.isOpened()
         self._lock = threading.Lock()
         self._activo = True
@@ -69,12 +70,13 @@ class CamaraEnVivo:
                 self.cap = cv2.VideoCapture(self.fuente)
                 continue
             with self._lock:
-                self.frame = frame
+                self.frame, self.t_captura = frame, time.time()
 
     def leer(self):
+        """Devuelve (fotograma, hora de captura) o (None, None) si no hay uno nuevo."""
         with self._lock:
             frame, self.frame = self.frame, None
-        return frame
+            return frame, (self.t_captura if frame is not None else None)
 
     def cerrar(self):
         self._activo = False
@@ -85,16 +87,16 @@ def abrir_fuente(fuente):
     """Número = webcam o cámara virtual del celular; texto = URL o archivo."""
     if isinstance(fuente, int) or str(fuente).isdigit():
         return int(fuente), False
-    es_archivo = Path(str(fuente)).exists()
-    return str(fuente), es_archivo
+    return str(fuente), Path(str(fuente)).exists()
 
 
 def dibujar(frame, detecciones, estados):
     for d in detecciones:
         x1, y1, x2, y2 = map(int, d.caja)
-        cv2.rectangle(frame, (x1, y1), (x2, y2), COLOR.get(d.clase, (200, 200, 200)), 2)
+        color = COLOR.get(d.clase, (200, 200, 200))
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
         cv2.putText(frame, f"{d.clase} {d.confianza:.2f}", (x1, max(15, y1 - 5)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLOR.get(d.clase, (200, 200, 200)), 1)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
     y_panel = 25
     for e in estados:
         color = ROJO if e.alerta else AMARILLO
@@ -104,8 +106,8 @@ def dibujar(frame, detecciones, estados):
         else:
             x1, y1, x2, y2 = map(int, e.caja)
             if e.texto == "Zona restringida":
-                cv2.rectangle(frame, (x1, y1), (x2, y2), ROJO, 1)
-                cv2.putText(frame, e.texto, (x1 + 5, y1 + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, ROJO, 1)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), ROJO, 2)
+                cv2.putText(frame, e.texto, (x1 + 5, y1 + 22), cv2.FONT_HERSHEY_SIMPLEX, 0.6, ROJO, 2)
             else:
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 3 if e.alerta else 2)
                 cv2.putText(frame, e.texto, (x1, min(frame.shape[0] - 8, y2 + 20)),
@@ -120,6 +122,40 @@ def guardar_jpg(ruta: Path, frame):
     os.replace(tmp, ruta)
 
 
+def guardar_config_activa(cfg: dict) -> None:
+    tmp = CONFIG_ACTIVA.with_suffix(".tmp")
+    tmp.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    os.replace(tmp, CONFIG_ACTIVA)
+
+
+class Recargador:
+    """Detecta cambios en data/ajustes.yaml (hechos desde el dashboard) y los aplica en vivo."""
+
+    def __init__(self, base: dict):
+        self.base = base
+        self.mtime = None
+        self.revisado = 0.0
+
+    def revisar(self, analizador: Analizador) -> None:
+        if time.time() - self.revisado < 1:
+            return
+        self.revisado = time.time()
+        if not AJUSTES.exists():
+            return
+        mtime = AJUSTES.stat().st_mtime
+        if mtime == self.mtime:
+            return
+        self.mtime = mtime
+        try:
+            cfg = fusionar(self.base, cargar_yaml(AJUSTES))
+            analizador.aplicar_config(cfg)
+        except Exception as e:  # un ajuste inválido no debe tumbar la demo
+            print(f"[Ajustes] No se pudieron aplicar: {e}")
+            return
+        guardar_config_activa(cfg)
+        print("[Ajustes] Parámetros actualizados desde el dashboard.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Detector en vivo de Tres60 SafeCampus")
     parser.add_argument("--config", default=str(AQUI / "config.yaml"))
@@ -127,16 +163,26 @@ def main():
     parser.add_argument("--sin-ventana", action="store_true", help="No abrir ventana de OpenCV")
     args = parser.parse_args()
 
-    cfg = yaml.safe_load(Path(args.config).read_text(encoding="utf-8"))
+    cfg = cargar_yaml(args.config)
     fuente, es_archivo = abrir_fuente(args.fuente if args.fuente is not None else cfg["fuente"])
     camara = cfg.get("nombre_camara", "Cámara 1")
     ventana = cfg.get("mostrar_ventana", True) and not args.sin_ventana
 
     EVIDENCIAS.mkdir(parents=True, exist_ok=True)
+    AJUSTES.unlink(missing_ok=True)  # al iniciar manda config.yaml; el dashboard ajusta encima
+    guardar_config_activa(cfg)
     almacen = Almacen(DATOS / "alertas.db")
-    motor = Motor.desde_config(cfg["reglas"])
-    modelo = YOLO(cfg.get("modelo", "yolo11n.pt"))
-    clases = [i for i, n in modelo.names.items() if n in CLASES_DE_INTERES]
+    analizador = Analizador(cfg)
+    recargador = Recargador(cfg)
+
+    telegram = None
+    token, chat_id = credenciales(cfg)
+    if token and chat_id:
+        telegram = Telegram(token, chat_id, almacen)
+        telegram.iniciar()
+        print("Telegram activado: las alertas llegarán al chat configurado.")
+    else:
+        print("Telegram desactivado (falta TELEGRAM_TOKEN o TELEGRAM_CHAT_ID).")
 
     if es_archivo:
         cap = cv2.VideoCapture(fuente)
@@ -150,7 +196,7 @@ def main():
             )
 
     print(f"Analizando {fuente} ({camara}). Reglas activas: "
-          f"{', '.join(r.tipo for r in motor.reglas)}. Presiona q para salir.")
+          f"{', '.join(r.tipo for r in analizador.motor.reglas)}. Presiona q para salir.")
     ultimo_publicado = 0.0
     t_fps, n_fps, fps = time.time(), 0, 0.0
     try:
@@ -159,32 +205,23 @@ def main():
                 ok, frame = cap.read()
                 if not ok:
                     break
+                t_captura = time.time()
                 ahora = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0  # tiempo del video
             else:
-                frame = cam.leer()
+                frame, t_captura = cam.leer()
                 if frame is None:
                     time.sleep(0.01)
                     continue
-                ahora = time.time()
+                ahora = t_captura
 
-            alto, ancho = frame.shape[:2]
-            resultado = modelo.predict(
-                frame, conf=cfg.get("confianza", 0.4), imgsz=cfg.get("tamano_imagen", 640),
-                classes=clases, verbose=False,
-            )[0]
-            detecciones = [
-                Deteccion(modelo.names[int(c)], float(p), tuple(map(float, caja)))
-                for caja, c, p in zip(
-                    resultado.boxes.xyxy.tolist(), resultado.boxes.cls.tolist(),
-                    resultado.boxes.conf.tolist(),
-                )
-            ]
-            alertas, estados = motor.evaluar(detecciones, ancho, alto, ahora)
+            recargador.revisar(analizador)
+            detecciones, alertas, estados = analizador.procesar(frame, ahora)
             dibujar(frame, detecciones, estados)
 
             n_fps += 1
             if time.time() - t_fps >= 1:
                 fps, n_fps, t_fps = n_fps / (time.time() - t_fps), 0, time.time()
+            ancho = frame.shape[1]
             cv2.putText(frame, f"{fps:.1f} fps", (ancho - 110, 25),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
@@ -192,10 +229,15 @@ def main():
                 foto = frame.copy()
                 for x1, y1, x2, y2 in a.cajas:
                     cv2.rectangle(foto, (int(x1), int(y1)), (int(x2), int(y2)), ROJO, 4)
-                nombre = f"{time.strftime('%Y%m%d_%H%M%S')}_{a.tipo}_{int(time.time()*1000)%1000}.jpg"
+                nombre = f"{time.strftime('%Y%m%d_%H%M%S')}_{a.tipo}_{int(time.time() * 1000) % 1000}.jpg"
+                ruta = str(EVIDENCIAS / nombre)
                 guardar_jpg(EVIDENCIAS / nombre, foto)
-                alerta_id = almacen.guardar(camara, a.tipo, a.mensaje, str(EVIDENCIAS / nombre))
-                print(f"[ALERTA #{alerta_id}] {a.mensaje}")
+                latencia_ms = (time.time() - t_captura) * 1000
+                alerta_id = almacen.guardar(camara, a.tipo, a.mensaje, ruta,
+                                            duracion_s=a.duracion, latencia_ms=latencia_ms)
+                print(f"[ALERTA #{alerta_id}] {a.mensaje} (procesada en {latencia_ms:.0f} ms)")
+                if telegram:
+                    telegram.enviar_alerta(alerta_id, a.tipo, a.mensaje, camara, ruta)
 
             if time.time() - ultimo_publicado > 0.3:
                 guardar_jpg(EN_VIVO, frame)
@@ -212,6 +254,13 @@ def main():
             cap.release()
         else:
             cam.cerrar()
+        if telegram:
+            # Dar unos segundos para que salgan las alertas pendientes.
+            for _ in range(10):
+                if telegram._cola.empty():
+                    break
+                time.sleep(0.5)
+            telegram.detener()
         if ventana:
             cv2.destroyAllWindows()
 

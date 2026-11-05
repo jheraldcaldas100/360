@@ -26,6 +26,7 @@ class Alerta:
     tipo: str
     mensaje: str
     cajas: list[Caja]
+    duracion: float = 0.0  # segundos desde que empezó la situación hasta la alerta
 
 
 @dataclass
@@ -125,6 +126,11 @@ class Seguidor:
         self.pistas: dict[int, Pista] = {}
         self._ids = count(1)
 
+    def cambiar_tolerancia(self, tolerancia_s: float) -> None:
+        self.tolerancia_s = tolerancia_s
+        for pista in self.pistas.values():
+            pista.temporizador.tolerancia_s = tolerancia_s
+
     def actualizar(self, cajas: list[Caja], ahora: float) -> list[Pista]:
         libres = dict(self.pistas)
         vistas: list[Pista] = []
@@ -160,11 +166,19 @@ class ReglaAglomeracion:
 
     tipo = "aglomeracion"
 
-    def __init__(self, personas_min: int = 4, segundos: float = 5, tolerancia_s: float = 1.5):
-        self.personas_min = personas_min
-        self.segundos = segundos
-        self.temporizador = Temporizador(tolerancia_s)
+    def __init__(self, **params):
+        self.temporizador = Temporizador(1.5)
         self.alertado = False
+        self.configurar(**{"personas_min": 4, "segundos": 5, **params})
+
+    def configurar(self, personas_min=None, segundos=None, tolerancia_s=None):
+        """Cambia parámetros sin perder el estado (se usa al ajustar desde el dashboard)."""
+        if personas_min is not None:
+            self.personas_min = int(personas_min)
+        if segundos is not None:
+            self.segundos = float(segundos)
+        if tolerancia_s is not None:
+            self.temporizador.tolerancia_s = float(tolerancia_s)
 
     def evaluar(self, personas: list[Deteccion], objetos, ancho, alto, ahora):
         n = len(personas)
@@ -180,6 +194,7 @@ class ReglaAglomeracion:
                     f"Aglomeración: {n} personas durante {dur:.0f} s "
                     f"(umbral: {self.personas_min} personas, {self.segundos:.0f} s)",
                     [p.caja for p in personas],
+                    dur,
                 )
             )
         texto = f"Personas: {n} / {self.personas_min}"
@@ -200,19 +215,29 @@ class ReglaObjetoDesatendido:
 
     tipo = "objeto_desatendido"
 
-    def __init__(
-        self,
-        clases=("backpack", "handbag", "suitcase"),
-        segundos: float = 600,
-        margen: float = 1.0,
-        segundos_para_reiniciar: float = 3.0,
-        movimiento_max: float = 0.5,
-    ):
-        self.clases = set(clases)
-        self.segundos = segundos
-        self.margen = margen
-        self.movimiento_max = movimiento_max
-        self.seguidor = Seguidor(tolerancia_s=segundos_para_reiniciar, olvido_s=5.0)
+    def __init__(self, **params):
+        self.seguidor = Seguidor(tolerancia_s=3.0, olvido_s=5.0)
+        defaults = {
+            "clases": ("backpack", "handbag", "suitcase"),
+            "segundos": 600,
+            "margen": 1.0,
+            "segundos_para_reiniciar": 3.0,
+            "movimiento_max": 0.5,
+        }
+        self.configurar(**{**defaults, **params})
+
+    def configurar(self, clases=None, segundos=None, margen=None,
+                   segundos_para_reiniciar=None, movimiento_max=None):
+        if clases is not None:
+            self.clases = set(clases)
+        if segundos is not None:
+            self.segundos = float(segundos)
+        if margen is not None:
+            self.margen = float(margen)
+        if movimiento_max is not None:
+            self.movimiento_max = float(movimiento_max)
+        if segundos_para_reiniciar is not None:
+            self.seguidor.cambiar_tolerancia(float(segundos_para_reiniciar))
 
     def evaluar(self, personas, objetos: list[Deteccion], ancho, alto, ahora):
         cajas = [o.caja for o in objetos if o.clase in self.clases]
@@ -240,6 +265,7 @@ class ReglaObjetoDesatendido:
                         f"Objeto #{pista.id} sin persona cerca durante {_mmss(dur)} "
                         f"(umbral: {_mmss(self.segundos)})",
                         [pista.caja],
+                        dur,
                     )
                 )
             if pista.temporizador.activo:
@@ -261,17 +287,21 @@ class ReglaPersonaEnSuelo:
 
     tipo = "persona_en_suelo"
 
-    def __init__(
-        self,
-        segundos: float = 30,
-        proporcion: float = 1.3,
-        ignorar_borde_inferior: bool = True,
-        tolerancia_s: float = 1.5,
-    ):
-        self.segundos = segundos
-        self.proporcion = proporcion
-        self.ignorar_borde_inferior = ignorar_borde_inferior
-        self.seguidor = Seguidor(tolerancia_s=tolerancia_s, olvido_s=3.0, iou_min=0.2)
+    def __init__(self, **params):
+        self.seguidor = Seguidor(tolerancia_s=1.5, olvido_s=3.0, iou_min=0.2)
+        defaults = {"segundos": 30, "proporcion": 1.3, "ignorar_borde_inferior": True}
+        self.configurar(**{**defaults, **params})
+
+    def configurar(self, segundos=None, proporcion=None, ignorar_borde_inferior=None,
+                   tolerancia_s=None):
+        if segundos is not None:
+            self.segundos = float(segundos)
+        if proporcion is not None:
+            self.proporcion = float(proporcion)
+        if ignorar_borde_inferior is not None:
+            self.ignorar_borde_inferior = bool(ignorar_borde_inferior)
+        if tolerancia_s is not None:
+            self.seguidor.cambiar_tolerancia(float(tolerancia_s))
 
     def evaluar(self, personas: list[Deteccion], objetos, ancho, alto, ahora):
         alertas, estados = [], []
@@ -291,6 +321,7 @@ class ReglaPersonaEnSuelo:
                         f"Persona #{pista.id} en el suelo durante {dur:.0f} s "
                         f"(umbral: {self.segundos:.0f} s)",
                         [pista.caja],
+                        dur,
                     )
                 )
             if pista.temporizador.activo:
@@ -308,10 +339,17 @@ class ReglaZonaRestringida:
 
     tipo = "zona_restringida"
 
-    def __init__(self, zona=(0.6, 0.0, 1.0, 1.0), segundos: float = 2, tolerancia_s: float = 1.0):
-        self.zona = tuple(zona)
-        self.segundos = segundos
-        self.seguidor = Seguidor(tolerancia_s=tolerancia_s, olvido_s=2.0, iou_min=0.2)
+    def __init__(self, **params):
+        self.seguidor = Seguidor(tolerancia_s=1.0, olvido_s=2.0, iou_min=0.2)
+        self.configurar(**{"zona": (0.6, 0.0, 1.0, 1.0), "segundos": 2, **params})
+
+    def configurar(self, zona=None, segundos=None, tolerancia_s=None):
+        if zona is not None:
+            self.zona = tuple(float(v) for v in zona)
+        if segundos is not None:
+            self.segundos = float(segundos)
+        if tolerancia_s is not None:
+            self.seguidor.cambiar_tolerancia(float(tolerancia_s))
 
     def evaluar(self, personas: list[Deteccion], objetos, ancho, alto, ahora):
         zx1, zy1, zx2, zy2 = (
@@ -328,7 +366,8 @@ class ReglaZonaRestringida:
             if dur >= self.segundos and not pista.alertado:
                 pista.alertado = True
                 alertas.append(
-                    Alerta(self.tipo, f"Persona #{pista.id} en zona restringida", [pista.caja])
+                    Alerta(self.tipo, f"Persona #{pista.id} en zona restringida durante {dur:.0f} s",
+                           [pista.caja], dur)
                 )
             if pista.temporizador.activo:
                 estados.append(Estado(f"En zona {dur:.0f} s", pista.caja, pista.alertado))
@@ -353,13 +392,26 @@ class Motor:
 
     @classmethod
     def desde_config(cls, config_reglas: dict) -> "Motor":
-        reglas = []
+        motor = cls()
+        motor.aplicar_config(config_reglas)
+        return motor
+
+    def aplicar_config(self, config_reglas: dict) -> None:
+        """Activa, desactiva o ajusta reglas sin perder el estado de las que siguen activas."""
+        actuales = {r.tipo: r for r in self.reglas}
+        nuevas = []
         for nombre, params in (config_reglas or {}).items():
+            if nombre not in REGLAS:
+                raise ValueError(f"Regla desconocida: {nombre}")
             params = dict(params or {})
             if not params.pop("activa", True):
                 continue
-            reglas.append(REGLAS[nombre](**params))
-        return cls(reglas)
+            if nombre in actuales:
+                actuales[nombre].configurar(**params)
+                nuevas.append(actuales[nombre])
+            else:
+                nuevas.append(REGLAS[nombre](**params))
+        self.reglas = nuevas
 
     def evaluar(self, detecciones: list[Deteccion], ancho: int, alto: int, ahora: float):
         personas = [d for d in detecciones if d.clase == "person"]

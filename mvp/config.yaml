@@ -13,6 +13,12 @@ confianza: 0.4          # confianza mínima de cada detección (0 a 1)
 tamano_imagen: 640      # bajar a 480 o 320 si la laptop va lenta
 mostrar_ventana: true
 
+# Alertas al celular por Telegram (opcional). Mejor usar variables de entorno
+# TELEGRAM_TOKEN y TELEGRAM_CHAT_ID para no subir el token al repositorio.
+telegram:
+  token: ""
+  chat_id: ""
+
 reglas:
   aglomeracion:
     activa: true

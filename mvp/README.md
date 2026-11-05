@@ -56,6 +56,69 @@ streamlit run dashboard.py
 
 La primera vez se descarga el modelo `yolo11n.pt` (unos 6 MB). Las alertas se guardan en `data/alertas.db` y las fotos de evidencia en `data/evidencias/`. Para empezar de cero, borren la carpeta `data/`.
 
+### El dashboard
+
+| Pestaña | Qué tiene |
+|---|---|
+| 📹 **Monitoreo** | Video en vivo y alertas con **prioridad por color** (alta: persona en el suelo y zona restringida; media: objeto y aglomeración), **sonido** y aviso emergente. Flujo del guardia: **Confirmar o Descartar → Marcar atendida**. Cada alerta muestra cuánto tardó en generarse, en procesarse, en revisarse y en atenderse, y quién lo hizo |
+| 📊 **Estadísticas** | Tasa de confirmación, tiempo de respuesta, tiempo de procesamiento, tabla por tipo, gráficos por tipo y por hora, historial y descarga en CSV |
+| ⚙️ **Configuración** | **Deslizadores** para cambiar personas, segundos, confianza y la zona restringida. Se aplican **en vivo** en un segundo, sin reiniciar el detector. Ideal para mostrarle al jurado que los criterios son objetivos y configurables |
+
+## 3b. Alertas al celular por Telegram (10 minutos)
+
+1. En Telegram, abran **@BotFather**, escriban `/newbot`, elijan un nombre y copien el **token** que les da.
+2. Creen un grupo, por ejemplo "Seguridad SafeCampus", y agreguen al bot. Escriban cualquier mensaje en el grupo.
+3. Abran en el navegador `https://api.telegram.org/bot<TOKEN>/getUpdates` y copien el número de `"chat":{"id": ...}`. En los grupos es negativo, por ejemplo `-1001234567890`.
+4. Definan las variables antes de correr el detector. En Linux o Mac:
+   ```bash
+   export TELEGRAM_TOKEN="123456:ABC..."
+   ```
+   ```bash
+   export TELEGRAM_CHAT_ID="-1001234567890"
+   ```
+   En Windows (PowerShell): `$env:TELEGRAM_TOKEN="..."` y `$env:TELEGRAM_CHAT_ID="..."`.
+5. Prueben la conexión: `python notificador.py` debe enviar un mensaje al grupo.
+
+Cada alerta llega con **foto y botones** (✅ Confirmar / ❌ Descartar y luego 🚓 Marcar atendida). Lo que se toca en Telegram se ve en el dashboard, y al revés. Solo el chat configurado puede cambiar alertas. **No suban el token al repositorio.**
+
+## 3c. Medir resultados con videos (para el pitch)
+
+1. Graben clips cortos de cada situación con el celular, en el lugar de la demo. Por ejemplo, 5 de aglomeración, 5 de mochila, 5 de persona en el suelo y 5 normales, sin situaciones.
+2. Anoten en un CSV en qué segundo empieza y termina cada situación:
+   ```
+   video,tipo,inicio_s,fin_s
+   clips/aglo1.mp4,aglomeracion,3,15
+   clips/mochila1.mp4,objeto_desatendido,5,40
+   clips/caida1.mp4,persona_en_suelo,4,12
+   clips/normal1.mp4,,,
+   ```
+   En `objeto_desatendido`, el inicio es cuando la persona se aleja de la mochila.
+3. Corran la evaluación:
+   ```bash
+   python evaluar.py clips/etiquetas.csv
+   ```
+   Se genera `data/evaluacion/resumen.md`, con una tabla de detectados, omitidos, sensibilidad, falsas alarmas y tiempo hasta la alerta lista para las diapositivas, y `detalle.csv`, con cada situación y cada alerta.
+
+## 3d. Experimento "¿quién lo ve primero?"
+
+Simula una sala de monitoreo para comparar a personas con el sistema.
+
+1. Creen el mosaico. El **primer video** es el que tiene la situación; los demás son videos normales:
+   ```bash
+   python experimento.py crear --videos clips/mochila1.mp4 clips/normal1.mp4 clips/normal2.mp4 clips/normal3.mp4 --duracion 90 --posicion-evento 3
+   ```
+2. Midan a cada participante, sin decirle qué va a pasar ni en qué cámara. En `--evento` va el segundo en que empieza la situación en el video del evento:
+   ```bash
+   python experimento.py medir --evento 5 --participante "Ana"
+   ```
+   El participante presiona ESPACIO cuando nota algo raro.
+3. Calculen el resumen y compárenlo con el sistema. El tiempo del sistema sale de `evaluar.py` para ese mismo video:
+   ```bash
+   python experimento.py resumen --sistema 25
+   ```
+
+Con 10 participantes ya tienen un resultado fuerte para el pitch, del tipo "4 de 10 personas no notaron la mochila; SafeCampus alertó siempre".
+
 Otros usos:
 
 ```bash
@@ -97,11 +160,15 @@ Con un archivo de video se usa el tiempo del video, así que el resultado es igu
 
 | Archivo | Qué hace |
 |---|---|
-| `reglas.py` | Las reglas y sus parámetros (sin dependencia de la cámara) |
-| `detector.py` | Cámara → YOLO → reglas → alertas, foto de evidencia y video en vivo |
-| `almacen.py` | Registro de alertas en SQLite |
+| `reglas.py` | Las reglas y sus parámetros, ajustables en vivo (sin dependencia de la cámara) |
+| `analizador.py` | YOLO más reglas; lo comparten la demo y la evaluación |
+| `detector.py` | Cámara → análisis → alertas, foto de evidencia, Telegram, video en vivo y ajustes en vivo |
+| `almacen.py` | Registro de alertas en SQLite, con el flujo nueva → confirmada o descartada → atendida, y los tiempos |
+| `notificador.py` | Alertas por Telegram con botones |
 | `dashboard.py` | Dashboard del operador (Streamlit) |
+| `evaluar.py` | Evaluación con videos etiquetados |
+| `experimento.py` | Experimento "¿quién lo ve primero?" |
 | `config.yaml` / `config_real.yaml` | Parámetros de la demo y de la hipótesis real |
-| `tests/test_reglas.py` | Pruebas de las reglas con detecciones simuladas: `python -m pytest tests` |
+| `tests/` | Pruebas de las reglas, el registro, Telegram (simulado), la evaluación y el experimento: `python -m pytest tests` |
 
 Licencia del modelo: Ultralytics YOLO es AGPL-3.0. Para un hackatón no es un problema, pero hay que revisarlo si después se quiere comercializar (ver `docs/propuesta-safecampus-v2.md`, sección 8).

@@ -3,3 +3,5 @@ opencv-python>=4.9
 streamlit>=1.50
 pyyaml>=6.0
 pytest>=8.0
+requests>=2.31
+pandas>=2.0
