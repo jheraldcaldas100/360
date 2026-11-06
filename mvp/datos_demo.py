@@ -19,7 +19,7 @@ from almacen import Almacen
 from mapa import _fuente
 
 ANCHO, ALTO = 960, 540
-AMARILLO, ROJO, GRIS = (235, 180, 20), (220, 40, 40), (92, 100, 116)
+AMARILLO, ROJO, GRIS = (250, 190, 40), (248, 80, 80), (148, 163, 184)
 RUTULO = "IMAGEN ILUSTRATIVA: NO ES UNA CÁMARA REAL"
 
 MAPA = {
@@ -74,15 +74,19 @@ def _caja(d: ImageDraw.ImageDraw, caja: tuple[int, int, int, int], color=AMARILL
 
 def escena(tipo: str = "") -> Image.Image:
     """Dibujo esquemático de la situación, con su rótulo."""
-    img = Image.new("RGB", (ANCHO, ALTO), (222, 228, 235))
+    img = Image.new("RGB", (ANCHO, ALTO), (24, 33, 48))
     d = ImageDraw.Draw(img)
-    d.rectangle((0, 250, ANCHO, ALTO), fill=(196, 200, 190))
+    d.rectangle((0, 250, ANCHO, ALTO), fill=(38, 50, 69))
+    for x in range(-600, ANCHO + 600, 150):  # líneas del piso, en perspectiva
+        d.line((ANCHO / 2 + (x - ANCHO / 2) * 0.35, 250, x, ALTO), fill=(52, 66, 88), width=1)
+    for y in (290, 345, 420):
+        d.line((0, y, ANCHO, y), fill=(52, 66, 88), width=1)
     if tipo == "aglomeracion":
         for x in (300, 400, 490, 590, 680):
             _caja(d, _persona(d, x, 200), ROJO)
     elif tipo == "objeto_desatendido":
         caja = (440, 340, 540, 450)
-        d.rounded_rectangle(caja, radius=18, fill=(70, 90, 130))
+        d.rounded_rectangle(caja, radius=18, fill=(96, 125, 175))
         _caja(d, (428, 328, 552, 462), ROJO)
         _persona(d, 840, 180)
     elif tipo == "persona_en_suelo":
@@ -96,7 +100,7 @@ def escena(tipo: str = "") -> Image.Image:
     else:
         for x in (220, 520):
             _caja(d, _persona(d, x, 200))
-    d.rectangle((0, ALTO - 34, ANCHO, ALTO), fill=(40, 45, 55))
+    d.rectangle((0, ALTO - 34, ANCHO, ALTO), fill=(10, 15, 25))
     d.text((12, ALTO - 28), RUTULO, fill="white", font=_fuente(18))
     return img
 

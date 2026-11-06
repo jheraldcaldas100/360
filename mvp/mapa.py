@@ -43,7 +43,7 @@ def plano_de_ejemplo() -> Image.Image:
     for caja, nombre in edificios:
         d.rectangle(caja, fill=(205, 210, 220), outline=(130, 135, 150), width=2)
         d.text((caja[0] + 10, caja[1] + 10), nombre, fill=(60, 65, 80), font=f)
-    d.text((10, ALTO - 22), "Plano de ejemplo: configura tu propio plano en config.yaml (mapa.imagen)",
+    d.text((10, ALTO - 22), "Plano de ejemplo",
            fill=(120, 120, 120), font=_fuente(12))
     return img
 
