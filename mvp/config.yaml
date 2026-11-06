@@ -5,7 +5,10 @@
 #   0, 1, 2...  -> webcam de la laptop o cámara virtual del celular (DroidCam, Iriun, Continuity Camera)
 #   "http://IP_DEL_CELULAR:8080/video" -> app IP Webcam (Android)
 #   "videos/prueba.mp4" -> archivo de video
-fuente: 0
+fuente: 1
+# Tamaño que se le pide a la cámara (ancho, alto). Sin esto, Iriun entrega 640x480 con
+# franjas negras, y la regla de persona en el suelo ya no reconoce el borde inferior.
+resolucion: [1280, 720]
 nombre_camara: "Celular demo"
 
 modelo: yolo11n.pt      # se descarga solo la primera vez (~6 MB)

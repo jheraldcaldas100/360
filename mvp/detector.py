@@ -51,15 +51,23 @@ class CamaraEnVivo:
     (pasa mucho con la cámara del celular por wifi y una laptop sin GPU).
     """
 
-    def __init__(self, fuente):
+    def __init__(self, fuente, resolucion=None):
         self.fuente = fuente
-        self.cap = cv2.VideoCapture(fuente)
+        self.resolucion = resolucion
+        self.cap = self._abrir()
         self.frame = None
         self.t_captura = 0.0
         self.ok = self.cap.isOpened()
         self._lock = threading.Lock()
         self._activo = True
         threading.Thread(target=self._leer, daemon=True).start()
+
+    def _abrir(self):
+        cap = cv2.VideoCapture(self.fuente)
+        if self.resolucion:
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolucion[0])
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolucion[1])
+        return cap
 
     def _leer(self):
         while self._activo:
@@ -68,7 +76,7 @@ class CamaraEnVivo:
                 # Se cortó el stream: reintentar en 1 s.
                 time.sleep(1)
                 self.cap.release()
-                self.cap = cv2.VideoCapture(self.fuente)
+                self.cap = self._abrir()
                 continue
             with self._lock:
                 self.frame, self.t_captura = frame, time.time()
@@ -116,17 +124,31 @@ def dibujar(frame, detecciones, estados):
     return frame
 
 
-def guardar_jpg(ruta: Path, frame):
+def reemplazar(tmp: Path, destino: Path, intentos: int = 10, espera: float = 0.02) -> bool:
+    """os.replace con reintentos. En Windows falla si otro proceso (el dashboard) está
+    leyendo el destino; eso no debe tumbar la demo. Devuelve False si sigue ocupado."""
+    for i in range(intentos):
+        try:
+            os.replace(tmp, destino)
+            return True
+        except PermissionError:
+            if i < intentos - 1:
+                time.sleep(espera)
+    return False
+
+
+def guardar_jpg(ruta: Path, frame) -> bool:
     """Escribe el JPG de forma atómica para que el dashboard nunca lea uno a medias."""
     tmp = ruta.with_suffix(".tmp.jpg")
     cv2.imwrite(str(tmp), frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
-    os.replace(tmp, ruta)
+    return reemplazar(tmp, ruta)
 
 
 def guardar_config_activa(cfg: dict) -> None:
     tmp = CONFIG_ACTIVA.with_suffix(".tmp")
     tmp.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False), encoding="utf-8")
-    os.replace(tmp, CONFIG_ACTIVA)
+    if not reemplazar(tmp, CONFIG_ACTIVA):
+        print("[Ajustes] No se pudo publicar la configuración activa para el dashboard.")
 
 
 class Recargador:
@@ -201,7 +223,7 @@ def main():
         if not cap.isOpened():
             raise SystemExit(f"No se pudo abrir el video: {fuente}")
     else:
-        cam = CamaraEnVivo(fuente)
+        cam = CamaraEnVivo(fuente, cfg.get("resolucion"))
         if not cam.ok:
             raise SystemExit(
                 f"No se pudo abrir la cámara: {fuente}. Revisa la URL o el número de cámara."
@@ -243,7 +265,8 @@ def main():
                     cv2.rectangle(foto, (int(x1), int(y1)), (int(x2), int(y2)), ROJO, 4)
                 nombre = f"{time.strftime('%Y%m%d_%H%M%S')}_{a.tipo}_{int(time.time() * 1000) % 1000}.jpg"
                 ruta = str(EVIDENCIAS / nombre)
-                guardar_jpg(EVIDENCIAS / nombre, foto)
+                if not guardar_jpg(EVIDENCIAS / nombre, foto):
+                    print(f"[Evidencia] No se pudo guardar la foto {nombre}.")
                 latencia_ms = (time.time() - t_captura) * 1000
                 alerta_id = almacen.guardar(camara, a.tipo, a.mensaje, ruta,
                                             duracion_s=a.duracion, latencia_ms=latencia_ms)
