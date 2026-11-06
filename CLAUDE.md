@@ -23,7 +23,7 @@ Usar el intérprete del entorno virtual por su ruta: `.venv/bin/python` (Mac o L
 | Para | Comando (dentro de `mvp/`) |
 |---|---|
 | Instalar | `python -m venv .venv` y luego `python -m pip install -r requirements.txt` |
-| Pruebas automáticas | `python -m pytest tests` (deben pasar las 34) |
+| Pruebas automáticas | `python -m pytest tests` (deben pasar todas, sin ningún `failed`) |
 | Chequeo previo | `python verificar.py --fuente <fuente>` |
 | Iniciar la demo | `python iniciar_demo.py --limpiar` (**proceso largo: ejecutarlo en segundo plano**) |
 | Ver alertas | `python revisar_alertas.py -n 5` o `--resumen` |
@@ -31,11 +31,11 @@ Usar el intérprete del entorno virtual por su ruta: `.venv/bin/python` (Mac o L
 
 ## Cómo ayudar con las pruebas
 
-Seguir `mvp/PRUEBAS.md` fase por fase. El comando `/probar-safecampus` arranca ese recorrido.
+Seguir `mvp/PRUEBAS.md` fase por fase. El comando `/probar-safecampus` arranca ese recorrido. Lo que falta desarrollar y validar está en `DESARROLLO-PENDIENTE.md`, y la instalación en otra laptop en `mvp/CONFIGURAR-LAPTOP.md`.
 
 - **Las acciones físicas las hacen las personas:** conectar el celular, actuar frente a la cámara, tocar botones. Pedirles una acción a la vez, decir qué deberían ver y esperar a que confirmen.
 - **Para ver lo que ve la cámara**, abrir `mvp/data/en_vivo.jpg` (se actualiza cada 0.3 s). Para verificar una alerta, usar `revisar_alertas.py` y abrir la foto de evidencia que indica.
-- **Para ajustar sin reiniciar**, escribir solo lo que cambia en `mvp/data/ajustes.yaml` (se combina con `config.yaml`). El modelo, `tamano_imagen` y `fuente` requieren reiniciar la demo. Si un ajuste funciona, pasarlo a `config.yaml`.
+- **Para ajustar sin reiniciar**, escribir solo lo que cambia en `mvp/data/ajustes.yaml` (se combina con `config.yaml`). `confianza` y `tamano_imagen` también se aplican en vivo; solo el modelo y `fuente` requieren reiniciar la demo. Si un ajuste funciona, pasarlo a `config.yaml`.
 - **Anotar resultados** en `docs/resultados-pruebas-AAAA-MM-DD.md` con la plantilla de `PRUEBAS.md`: intentos, alertas correctas, falsas alarmas y tiempos. No inventar resultados: solo lo observado o lo que digan las personas.
 - Ante un fallo, seguir la columna "Si falla" de la prueba y cambiar **un parámetro a la vez**.
 

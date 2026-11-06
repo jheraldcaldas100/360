@@ -56,7 +56,7 @@ Esta guía instala el proyecto en otra laptop y valida las dos funciones que tod
    ```powershell
    .\.venv\Scripts\python.exe -m pytest tests
    ```
-   **Aprobado:** `34 passed`.
+   **Aprobado:** todas pasan (`N passed`, sin ningún `failed`).
 
 ### B.1 Si la laptop tiene tarjeta gráfica NVIDIA (recomendado revisarlo)
 

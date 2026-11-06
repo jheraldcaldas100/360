@@ -44,7 +44,7 @@ Tarda de 5 a 15 minutos la primera vez (descarga PyTorch).
 python -m pytest tests
 ```
 
-**Aprobado:** termina con `34 passed`. Si falla, la instalación quedó incompleta: repetir el `pip install`.
+**Aprobado:** todas pasan (`N passed`, sin ningún `failed`). Si falla, la instalación quedó incompleta: repetir el `pip install`.
 
 ## Fase 2. Prueba rápida sin celular
 
@@ -200,7 +200,9 @@ reglas:
     proporcion: 1.1
 ```
 
-**Con reinicio.** El modelo (`modelo: yolo11s.pt`), `tamano_imagen` y `fuente` se cambian en `config.yaml` y se aplican al reiniciar la demo. Los ajustes de `data/ajustes.yaml` se borran al reiniciar, así que si un valor funcionó, hay que pasarlo a `config.yaml`.
+`confianza` y `tamano_imagen` también se pueden cambiar así, en vivo.
+
+**Con reinicio.** El modelo (`modelo: yolo11s.pt`) y `fuente` se cambian en `config.yaml` y se aplican al reiniciar la demo. Los ajustes de `data/ajustes.yaml` se borran al reiniciar, así que si un valor funcionó, hay que pasarlo a `config.yaml`.
 
 ## Plantilla de resultados
 
