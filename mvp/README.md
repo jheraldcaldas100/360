@@ -219,6 +219,8 @@ Con un archivo de video se usa el tiempo del video, así que el resultado es igu
 | `mapa.py` | Mapa del campus con las cámaras y sus alertas pendientes |
 | `verificar.py` | Chequeo previo a la demo |
 | `iniciar_demo.py` | Arranca el detector y el dashboard juntos |
+| `revisar_alertas.py` | Muestra las últimas alertas y sus tiempos en la terminal |
+| `PRUEBAS.md` | Guía de pruebas paso a paso (también la usa Claude Code con `/probar-safecampus`) |
 | `config.yaml` / `config_real.yaml` | Parámetros de la demo y de la hipótesis real |
 | `tests/` | Pruebas de las reglas, el registro, Telegram e IA (simulados), el mapa, la evaluación y el experimento: `python -m pytest tests` |
 
