@@ -72,6 +72,14 @@ def test_la_demo_no_permite_cambiar_parametros(app):
     assert len(app.slider) == 0
 
 
+def test_la_demo_muestra_los_parametros_de_forma_legible(app):
+    assert len(app.json) == 0
+    textos = " ".join(m.value for m in app.markdown)
+    for esperado in ("Aglomeración", "Personas mínimas", "Objeto desatendido", "mochila",
+                     "Persona en el suelo", "Zona restringida", "60% a 100%"):
+        assert esperado in textos
+
+
 def test_la_demo_no_escribe_en_la_carpeta_de_datos(app):
     assert app.session_state["almacen_demo"].conn.execute("PRAGMA database_list").fetchone()["file"] == ""
 

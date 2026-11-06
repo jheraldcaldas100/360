@@ -363,7 +363,41 @@ with tab_config:
     if MODO_DEMO:
         st.info("En la demo pública los parámetros solo se pueden leer. "
                 "En el sistema real se ajustan aquí y se aplican en vivo.")
-        st.json(yaml.safe_load((AQUI / "config.yaml").read_text(encoding="utf-8")).get("reglas", {}))
+        reglas = yaml.safe_load((AQUI / "config.yaml").read_text(encoding="utf-8")).get("reglas", {})
+        ag = reglas.get("aglomeracion", {})
+        ob = reglas.get("objeto_desatendido", {})
+        su = reglas.get("persona_en_suelo", {})
+        zo = reglas.get("zona_restringida", {})
+        x1, y1, x2, y2 = zo.get("zona", [0.6, 0.0, 1.0, 1.0])
+        objetos = {"backpack": "mochila", "handbag": "bolso", "suitcase": "maleta"}
+        fichas = [
+            (":material/groups: Aglomeración", ag, [
+                ("Personas mínimas", ag.get("personas_min")),
+                ("Segundos sostenidos", ag.get("segundos")),
+            ]),
+            (":material/backpack: Objeto desatendido", ob, [
+                ("Objetos vigilados", ", ".join(objetos.get(c, c) for c in ob.get("clases", []))),
+                ("Segundos sin nadie cerca (hipótesis real: 600)", ob.get("segundos")),
+                ("Tamaño del lugar alrededor del objeto", ob.get("margen")),
+                ("Segundos junto al objeto para reiniciar el conteo", ob.get("segundos_para_reiniciar")),
+            ]),
+            (":material/personal_injury: Persona en el suelo", su, [
+                ("Segundos en el suelo", su.get("segundos")),
+                ("Proporción ancho/alto para considerar «acostada»", su.get("proporcion")),
+            ]),
+            (":material/block: Zona restringida", zo, [
+                ("Zona, ancho del video", f"{x1:.0%} a {x2:.0%}"),
+                ("Zona, alto del video", f"{y1:.0%} a {y2:.0%}"),
+                ("Segundos dentro de la zona", zo.get("segundos")),
+            ]),
+        ]
+        for columna, pareja in zip(st.columns(2), (fichas[:2], fichas[2:])):
+            with columna:
+                for titulo, regla, valores in pareja:
+                    with st.container(border=True):
+                        estado = ":green[Activa]" if regla.get("activa") else ":gray[Inactiva]"
+                        st.markdown(f"**{titulo}** · {estado}")
+                        st.markdown("\n".join(f"- {nombre}: **{valor}**" for nombre, valor in valores))
     elif not CONFIG_ACTIVA.exists():
         st.info("Inicia `python detector.py` para ver y ajustar sus parámetros.")
     else:
