@@ -166,7 +166,7 @@ Con D1 a D3 hechas, seguir `mvp/PRUEBAS.md`, fases 4 a 8, con el celular **fijo*
 
 | Tarea | Estado | Notas |
 |---|---|---|
-| Fase 0. Configurar la laptop | Pendiente | |
+| Fase 0. Configurar la laptop | Hecha | 7.2 fps con el dashboard abierto y 7.4 cerrado, en CPU. Ver `docs/resultados-pruebas-2026-11-06.md` |
 | Fase 1. Telegram (T1 a T7) | Pendiente | |
 | Fase 1. IA (I1 a I5) | Pendiente | Opcional |
 | D1. Aviso de "SIN SEÑAL" | Pendiente | |
