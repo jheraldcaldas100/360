@@ -27,6 +27,11 @@ EN_VIVO = DATOS / "en_vivo.jpg"
 AJUSTES = DATOS / "ajustes.yaml"
 CONFIG_ACTIVA = DATOS / "config_activa.yaml"
 
+# Demo pública (demo_publica/app.py): datos de ejemplo, sin cámara y sin cambiar parámetros.
+MODO_DEMO = os.environ.get("SAFECAMPUS_DEMO") == "1"
+if MODO_DEMO:
+    import datos_demo
+
 NOMBRES = {
     "aglomeracion": "👥 Aglomeración",
     "objeto_desatendido": "🎒 Objeto desatendido",
@@ -51,8 +56,16 @@ st.markdown("<style>audio {display: none;}</style>", unsafe_allow_html=True)
 
 
 @st.cache_resource
-def almacen() -> Almacen:
+def almacen_compartido() -> Almacen:
     return Almacen(DATOS / "alertas.db")
+
+
+def almacen() -> Almacen:
+    if not MODO_DEMO:
+        return almacen_compartido()
+    if "almacen_demo" not in st.session_state:  # uno por visitante
+        st.session_state["almacen_demo"] = datos_demo.crear_almacen()
+    return st.session_state["almacen_demo"]
 
 
 @st.cache_data
@@ -83,12 +96,22 @@ def hora(iso: str | None) -> str:
 
 with st.sidebar:
     st.header("🛡️ SafeCampus")
-    sonido = st.toggle("Sonido en alertas nuevas", value=True)
+    sonido = st.toggle("Sonido en alertas nuevas", value=not MODO_DEMO)
     st.caption("Si no suena, haz clic en cualquier parte de la página: "
                "el navegador bloquea el audio hasta que interactúas.")
+    if MODO_DEMO and st.button("🚨 Simular una alerta", width="stretch"):
+        datos_demo.simular_alerta(almacen())
 
 st.title("🛡️ Tres60 SafeCampus")
 st.caption("Apoyo a la detección temprana. Cada alerta la confirma o descarta una persona.")
+if MODO_DEMO:
+    st.warning(
+        "**Demo pública con datos de ejemplo.** Muestra la interfaz del operador: aquí no hay "
+        "cámara ni análisis en vivo, y las alertas, imágenes y cifras son ilustrativas, no "
+        "resultados medidos. El sistema real procesa el video en local y se muestra en la "
+        "presentación. Lo que hagas aquí solo se ve en tu sesión.",
+        icon="ℹ️",
+    )
 
 tab_monitoreo, tab_estadisticas, tab_config = st.tabs(
     ["📹 Monitoreo", "📊 Estadísticas", "⚙️ Configuración"]
@@ -97,9 +120,11 @@ tab_monitoreo, tab_estadisticas, tab_config = st.tabs(
 # ----------------------------------------------------------------- monitoreo
 
 
-@st.fragment(run_every="0.5s")
+@st.fragment(run_every=None if MODO_DEMO else "0.5s")
 def video_en_vivo():
-    if EN_VIVO.exists():
+    if MODO_DEMO:
+        st.image(datos_demo.escena(), width="stretch")
+    elif EN_VIVO.exists():
         try:
             st.image(EN_VIVO.read_bytes(), width="stretch")
         except OSError:
@@ -151,7 +176,10 @@ def tarjeta(db: Almacen, a):
 
 @st.fragment(run_every="2s")
 def mapa_campus():
-    cfg = yaml.safe_load(CONFIG_ACTIVA.read_text(encoding="utf-8")) if CONFIG_ACTIVA.exists() else {}
+    if MODO_DEMO:
+        cfg = {"mapa": datos_demo.MAPA}
+    else:
+        cfg = yaml.safe_load(CONFIG_ACTIVA.read_text(encoding="utf-8")) if CONFIG_ACTIVA.exists() else {}
     if not (cfg.get("mapa") or {}).get("camaras"):
         st.caption("Configura `mapa.camaras` en config.yaml para ver las cámaras en el plano.")
         return
@@ -190,7 +218,7 @@ def panel_alertas():
 with tab_monitoreo:
     col_video, col_alertas = st.columns([3, 2], gap="large")
     with col_video:
-        st.subheader("En vivo")
+        st.subheader("Vista de ejemplo" if MODO_DEMO else "En vivo")
         video_en_vivo()
         st.subheader("Mapa del campus")
         mapa_campus()
@@ -217,6 +245,8 @@ with tab_estadisticas:
     if st.button("🔄 Actualizar estadísticas"):
         st.rerun()
     df = tabla_alertas()
+    if MODO_DEMO:
+        st.warning("Cifras de ejemplo: no son resultados de pruebas reales.")
     if df.empty:
         st.info("Aún no hay alertas registradas.")
     else:
@@ -274,7 +304,11 @@ with tab_estadisticas:
 
 with tab_config:
     st.subheader("Parámetros de detección")
-    if not CONFIG_ACTIVA.exists():
+    if MODO_DEMO:
+        st.info("En la demo pública los parámetros solo se pueden leer. "
+                "En el sistema real se ajustan aquí y se aplican en vivo.")
+        st.json(yaml.safe_load((AQUI / "config.yaml").read_text(encoding="utf-8")).get("reglas", {}))
+    elif not CONFIG_ACTIVA.exists():
         st.info("Inicia `python detector.py` para ver y ajustar sus parámetros.")
     else:
         cfg = yaml.safe_load(CONFIG_ACTIVA.read_text(encoding="utf-8"))

@@ -128,6 +128,20 @@ export OPENAI_API_KEY="sk-..."
 
 En `config.yaml`, pongan `ia.activa: true` y en `ia.modelo` un modelo con visión de https://platform.openai.com/docs/models. Si no hay internet o falla, la demo sigue funcionando sin la descripción.
 
+## 3b-quater. Demo pública con datos de ejemplo
+
+Enlace para que el jurado pruebe la interfaz del operador. **No es el sistema en vivo:** no usa cámara, YOLO ni Telegram, y sus alertas, dibujos y cifras son inventados. Cada visitante tiene sus propios datos en memoria y no puede cambiar parámetros. El sistema real sigue corriendo en local.
+
+Para probarla en la laptop (dentro de `mvp/`):
+
+```
+python -m streamlit run demo_publica/app.py --server.address 127.0.0.1
+```
+
+Para publicarla en https://share.streamlit.io: **Create app**, repositorio `jheraldcaldas100/360`, la rama del proyecto, archivo principal `mvp/demo_publica/app.py` y Python 3.12. Instala solo `mvp/demo_publica/requirements.txt`. **No agreguen tokens ni claves en Secrets:** la demo no los necesita.
+
+Al presentarla, digan siempre que usa datos de ejemplo.
+
 ## 3c. Medir resultados con videos (para el pitch)
 
 1. Graben clips cortos de cada situación con el celular, en el lugar de la demo. Por ejemplo, 5 de aglomeración, 5 de mochila, 5 de persona en el suelo y 5 normales, sin situaciones.
